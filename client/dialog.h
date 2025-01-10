@@ -54,6 +54,11 @@ private:
     void SendToServer(QString str, QString toLogin);
     // quint16 nextBlockSize;
     void handleClients(QJsonArray clients);
+    void handleAddNewClient(QJsonObject newClient);
+    void handleRemoveNewClient(QJsonObject client);
+
+    void showInitialState();
+    void restoreChatState();
 
 };
 

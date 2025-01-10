@@ -82,26 +82,70 @@ void Dialog::handleClients(QJsonArray clients)
 
     // Проходимся по каждому объекту в массиве
     for (const QJsonValue &clientValue : clients) {
-        if (clientValue.isObject()) {
-            QJsonObject clientObj = clientValue.toObject();
-            QString login = clientObj["login"].toString(); // Получаем логин пользователя
+        QJsonObject clientObj = clientValue.toObject();
+        handleAddNewClient(clientObj);
+        // if (clientValue.isObject()) {
+        //     QJsonObject clientObj = clientValue.toObject();
+        //     QString login = clientObj["login"].toString(); // Получаем логин пользователя
 
-            if (!login.isEmpty()) {
-                // Создаем элемент списка
-                QListWidgetItem *item = new QListWidgetItem(login, ui->userListWidget);
-                ui->userListWidget->addItem(item);
-            }
-        }
+        //     if (!login.isEmpty()) {
+        //         // Создаем элемент списка
+        //         QListWidgetItem *item = new QListWidgetItem(login, ui->userListWidget);
+        //         ui->userListWidget->addItem(item);
+        //     }
+        // }
     }
 
     // Подключаем обработчик нажатия на элемент списка
     connect(ui->userListWidget, &QListWidget::itemClicked, this, [=](QListWidgetItem *item) {
         if (item) {
+            restoreChatState();
             ui->titleLabel->setText(item->text()); // Устанавливаем выбранный логин в поле "To"
         }
     });
 
     qDebug() << "User list updated with" << clients.size() << "clients.";
+}
+
+void Dialog::handleRemoveNewClient(QJsonObject client)
+{
+    if (!client.isEmpty()) {
+        QString login = client["login"].toString(); // Получаем логин пользователя
+
+        if (!login.isEmpty()) {
+            // Проходим по всем элементам QListWidget
+            for (int i = 0; i < ui->userListWidget->count(); ++i) {
+                QListWidgetItem *item = ui->userListWidget->item(i);
+                if (item && item->text() == login) { // Сравниваем текст элемента с логином
+                    delete ui->userListWidget->takeItem(i); // Удаляем элемент из списка
+                    break; // Останавливаем цикл после удаления
+                }
+            }
+        }
+    }
+}
+
+
+void Dialog::handleAddNewClient(QJsonObject newClient)
+{
+    // for (int i = 0; i < ui->userListWidget->count(); ++i) {
+    //     QListWidgetItem *item = ui->userListWidget->item(i);
+    //     if (item->text() == login) {
+    //         qDebug() << "Client already in the list:" << login;
+    //         return; // Не добавляем дублирующий элемент
+    //     }
+    // }
+
+    if (!newClient.isEmpty()) {
+        // QJsonObject clientObj = clientValue.toObject();
+        QString login = newClient["login"].toString(); // Получаем логин пользователя
+
+        if (!login.isEmpty()) {
+            // Создаем элемент списка
+            QListWidgetItem *item = new QListWidgetItem(login, ui->userListWidget);
+            ui->userListWidget->addItem(item);
+        }
+    }
 }
 
 
@@ -135,8 +179,10 @@ void Dialog::slotTextMessageReceived(const QString &message)
         if(jsonObj["status"] == "success"){
             ui->textBrowser->append(login + " successfully logged in.");
 
+
             //вывод списка клиентов на экран
             handleClients(jsonObj["clients"].toArray());
+            showInitialState();
             emit onSuccess();
         } else if (jsonObj["status"] == "fail") {
             ui->textBrowser->append(login + " login failed.");
@@ -147,6 +193,7 @@ void Dialog::slotTextMessageReceived(const QString &message)
         if(jsonObj["status"] == "success"){
             ui->textBrowser->append(login + " successfully registered.");
             handleClients(jsonObj["clients"].toArray());
+            showInitialState();
             //вывод списка клиентов на экран
             emit onSuccess();
         } else if (jsonObj["status"] == "fail") {
@@ -160,8 +207,12 @@ void Dialog::slotTextMessageReceived(const QString &message)
         } else if (jsonObj["status"] == "fail") {
             ui->textBrowser->append("Message delivery failed: " + jsonObj["message"].toString());
         }
-    } else if(typeMessage == "new_client") {
-        //внести добавление нового клиента к списку клиентов
+    } else if(typeMessage == "clients") {
+        if(jsonObj["status"] == "connect"){
+            handleAddNewClient(jsonObj);
+        } else if (jsonObj["status"] == "disconnect"){
+            handleRemoveNewClient(jsonObj);
+        }
     } else {
         qDebug() << "Unknown message type.";
     }
@@ -191,6 +242,34 @@ void Dialog::on_pushButton_clicked()
     SendToServer(ui->lineEdit->text(), ui->titleLabel->text());
 }
 
+void Dialog::showInitialState()
+{
+    // Скрываем lineEdit и pushButton
+    ui->lineEdit->hide();
+    ui->pushButton->hide();
+
+    // Увеличиваем textBrowser
+    ui->textBrowser->setGeometry(140, 60, 350, 410); // Растянуть на область lineEdit и pushButton
+
+    // Отображаем текст в центре
+    ui->textBrowser->clear();
+    ui->textBrowser->setAlignment(Qt::AlignCenter);
+    ui->textBrowser->append("Добро пожаловать! Выберите пользователя для начала чата.");
+}
+
+void Dialog::restoreChatState()
+{
+    // Показываем lineEdit и pushButton
+    ui->lineEdit->show();
+    ui->pushButton->show();
+
+    ui->textBrowser->clear();
+    // Восстанавливаем размер textBrowser
+    ui->textBrowser->setGeometry(140, 60, 350, 351);
+
+    // Очищаем выравнивание текста
+    ui->textBrowser->setAlignment(Qt::AlignLeft);
+}
 
 
 //проверить повторную регистрацию

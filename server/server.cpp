@@ -147,6 +147,22 @@ void Server::slotDisconnected()
 
     if (clients.contains(socket)) {
         qDebug() << "Client disconnected:" << clients.value(socket);
+
+        QJsonObject notification;
+        notification["type"] = "clients";
+        notification["status"] = "disconnect";
+        notification["message"] = "A new client has connected";
+        notification["login"] = clients[socket];
+
+        QJsonDocument doc(notification);
+        QString message = QString::fromUtf8(doc.toJson(QJsonDocument::Compact));
+
+        for (QWebSocket *clientSocket : clients.keys()) {
+            if (clientSocket && clientSocket != socket) {
+                clientSocket->sendTextMessage(message);
+            }
+        }
+
         clients.remove(socket);
     } else {
         qDebug() << "Unknown client disconnected.";
@@ -273,13 +289,15 @@ bool Server::registrateNewClients(QWebSocket *socket, const QString &login, cons
     return true;
 }
 
-QJsonArray Server::getOnlineClientsList() {
+QJsonArray Server::getOnlineClientsList(QWebSocket *socket) {
     QJsonArray onlineClients;
 
     for (auto it = clients.begin(); it != clients.end(); ++it) {
-        QJsonObject client;
-        client["login"] = it.value(); // Логин клиента
-        onlineClients.append(client);
+        if(socket != it.key()){
+            QJsonObject client;
+            client["login"] = it.value(); // Логин клиента
+            onlineClients.append(client);
+        }
     }
 
     return onlineClients;
@@ -298,7 +316,7 @@ void Server::sendMessageToClients(const QJsonObject &jsonIncoming, QWebSocket *s
         response["message"] = status ? "Login successful" : "Invalid login or password";
 
         if(status){
-            response["clients"] = getOnlineClientsList();
+            response["clients"] = getOnlineClientsList(socket);
         }
 
     } else if (messageType == "registration") {
@@ -308,7 +326,7 @@ void Server::sendMessageToClients(const QJsonObject &jsonIncoming, QWebSocket *s
         response["message"] = status ? "Registration successful" : "Login is used, please try again";
 
         if(status){
-            response["clients"] = getOnlineClientsList();
+            response["clients"] = getOnlineClientsList(socket);
         }
         // добавить обработку других ошибок - мб статур error
     } else if (messageType == "chat") {
@@ -340,7 +358,8 @@ void Server::sendMessageToClients(const QJsonObject &jsonIncoming, QWebSocket *s
 
 void Server::notifyAllClients(const QString &newClientLogin, QWebSocket *socket) {
     QJsonObject notification;
-    notification["type"] = "new_client";
+    notification["type"] = "clients";
+    notification["status"] = "connect";
     notification["message"] = "A new client has connected";
     notification["login"] = newClientLogin;
 

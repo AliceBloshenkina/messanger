@@ -68,7 +68,7 @@ private:
     void handleLogin(QWebSocket* socket, const QJsonObject &jsonObj);
     void handleRegistration(QWebSocket* socket,const QJsonObject &jsonObj);
     void handleChatMessage(QWebSocket *socket, const QJsonObject &jsonObj);
-    QJsonArray getOnlineClientsList();
+    QJsonArray getOnlineClientsList(QWebSocket *socket);
     void notifyAllClients(const QString &newClientLogin, QWebSocket *socket);
 };
 
