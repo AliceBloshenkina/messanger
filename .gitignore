@@ -1,0 +1,15 @@
+build-client-*
+build-server-*
+
+*.pro.user
+*.pro.user.*
+*.qmake.stash
+*.o
+*.obj
+*.dll
+*.exe
+*.log
+
+CMakeFiles/
+CMakeCache.txt
+
