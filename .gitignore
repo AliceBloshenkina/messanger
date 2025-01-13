@@ -1,5 +1,4 @@
-build-client-*
-build-server-*
+build-*
 
 *.pro.user
 *.pro.user.*

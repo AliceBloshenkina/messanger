@@ -6,19 +6,16 @@ Server::Server(QObject *parent)
 {
     if (!db.isValid()) {
         db = QSqlDatabase::addDatabase("QSQLITE");
-        db.setDatabaseName("./users_messanger.db");
+        db.setDatabaseName("./messanger_users.db");
         if (!db.open()) {
             qDebug() << "Failed to open database" << db.lastError().text();
             return;
         }
 
-        // query = new QSqlQuery(db);
-        QSqlQuery query(db);
-        if (!query.exec("CREATE TABLE IF NOT EXISTS Users(Login TEXT UNIQUE, Password TEXT, Salt TEXT);")) {
-            qDebug() << "Failed to create table" << query.lastError().text();
+
+        if(!initializeDatabase()){
             return;
         }
-
     }
 
     if (webSocketServer->listen(QHostAddress::Any, 1111)){
@@ -28,6 +25,7 @@ Server::Server(QObject *parent)
     } else {
         qDebug() << "Failed to start server" << webSocketServer->errorString();
     }
+
 
     // ВЫВОД ВСЕХ ДАННЫХ
     // QSqlQuery query(db);
@@ -54,6 +52,34 @@ Server::Server(QObject *parent)
 
 
 }
+
+bool Server::initializeDatabase() {
+    QSqlQuery query(db);
+
+    if (!query.exec("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT, Login TEXT UNIQUE NOT NULL, Password TEXT NOT NULL, Salt TEXT NOT NULL);")) {
+        qDebug() << "Failed to create table Users:" << query.lastError().text();
+        return false;
+    }
+
+    if (!query.exec("CREATE TABLE IF NOT EXISTS Chats (Id INTEGER PRIMARY KEY AUTOINCREMENT, IdName1 INTEGER NOT NULL, IdName2 INTEGER NOT NULL, UNIQUE (IdName1, IdName2), FOREIGN KEY (IdName1) REFERENCES Users(Id) ON DELETE CASCADE, FOREIGN KEY (IdName2) REFERENCES Users(Id) ON DELETE CASCADE);")) {
+        qDebug() << "Failed to create table Chats:" << query.lastError().text();
+        return false;
+    }
+
+    if (!query.exec("CREATE TABLE IF NOT EXISTS Messages (Id INTEGER PRIMARY KEY AUTOINCREMENT, ChatId INTEGER NOT NULL, SenderId INTEGER NOT NULL, Message TEXT NOT NULL, Timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (ChatId) REFERENCES Chats(Id) ON DELETE CASCADE, FOREIGN KEY (SenderId) REFERENCES Users(Id) ON DELETE CASCADE);")) {
+        qDebug() << "Failed to create table Messages:" << query.lastError().text();
+        return false;
+    }
+
+    if (!query.exec("CREATE INDEX IF NOT EXISTS idx_chat_messages ON Messages (ChatId, Timestamp);")) {
+        qDebug() << "Failed to create index idx_chat_messages:" << query.lastError().text();
+        return false;
+    }
+
+    qDebug() << "Database initialized successfully";
+    return true;
+}
+
 
 void Server::slotNewConnection()
 {
@@ -113,7 +139,7 @@ void Server::handleLogin(QWebSocket* socket, const QJsonObject &jsonObj)
     bool statusLogin = processLoginRequest(socket, jsonObj["login"].toString(), jsonObj["password"].toString());
     sendMessageToClients(jsonObj, socket, statusLogin);
     if(statusLogin)
-        notifyAllClients(jsonObj["login"].toString(), socket);
+        notifyAllClients(jsonObj["login"].toString(), socket, "TRUE");
 
 }
 
@@ -131,13 +157,193 @@ void Server::handleRegistration(QWebSocket* socket, const QJsonObject &jsonObj)
     bool statusRegistartion = registrateNewClients(socket, jsonObj["login"].toString(), jsonObj["password"].toString());
     sendMessageToClients(jsonObj, socket, statusRegistartion);
     if(statusRegistartion)
-        notifyAllClients(jsonObj["login"].toString(), socket);
+        notifyAllClients(jsonObj["login"].toString(), socket, "TRUE");
 }
 
 void Server::handleChatMessage(QWebSocket *socket, const QJsonObject &jsonObj)
 {
     sendMessageToClients(jsonObj, socket);
 }
+
+void Server::addMessageToDatabase(const QJsonObject &jsonObj)
+{
+    // Проверка наличия всех необходимых ключей
+    if (!jsonObj.contains("from") || !jsonObj.contains("to") || !jsonObj.contains("message")) {
+        qDebug() << "Invalid chat message format: missing fields.";
+        return;
+    }
+
+    QString fromLogin = jsonObj["from"].toString();
+    QString toLogin = jsonObj["to"].toString();
+    QString message = jsonObj["message"].toString();
+
+    // Проверка валидности данных
+    if (fromLogin.isEmpty() || toLogin.isEmpty() || message.isEmpty()) {
+        qDebug() << "Invalid chat message: empty sender, receiver, or message.";
+        return;
+    }
+
+    QSqlQuery query(db);
+
+    // Получение ID отправителя и получателя
+    int fromId = -1, toId = -1;
+    query.prepare("SELECT Id FROM Users WHERE Login = :login");
+    query.bindValue(":login", fromLogin);
+    if (query.exec() && query.next()) {
+        fromId = query.value(0).toInt();
+    } else {
+        qDebug() << "Sender not found in database:" << fromLogin;
+        return;
+    }
+
+    query.bindValue(":login", toLogin);
+    if (query.exec() && query.next()) {
+        toId = query.value(0).toInt();
+    } else {
+        qDebug() << "Receiver not found in database:" << toLogin;
+        return;
+    }
+
+    // Получение или создание чата между пользователями
+    int chatId = -1;
+    query.prepare("SELECT Id FROM Chats WHERE (IdName1 = :fromId AND IdName2 = :toId) "
+                  "OR (IdName1 = :toId AND IdName2 = :fromId)");
+    query.bindValue(":fromId", fromId);
+    query.bindValue(":toId", toId);
+
+    if (query.exec() && query.next()) {
+        chatId = query.value(0).toInt();
+    } else {
+        // Создание чата, если он не существует
+        query.prepare("INSERT INTO Chats (IdName1, IdName2) VALUES (:fromId, :toId)");
+        query.bindValue(":fromId", qMin(fromId, toId)); // Упорядочиваем ID для уникальности
+        query.bindValue(":toId", qMax(fromId, toId));
+        if (query.exec()) {
+            chatId = query.lastInsertId().toInt();
+            qDebug() << "New chat created with ID:" << chatId;
+        } else {
+            qDebug() << "Failed to create chat:" << query.lastError().text();
+            return;
+        }
+    }
+
+    // Добавление сообщения в таблицу Messages
+    query.prepare("INSERT INTO Messages (ChatId, SenderId, Message) VALUES (:chatId, :senderId, :message)");
+    query.bindValue(":chatId", chatId);
+    query.bindValue(":senderId", fromId);
+    query.bindValue(":message", message);
+
+    if (!query.exec()) {
+        qDebug() << "Failed to insert message into database:" << query.lastError().text();
+        return;
+    }
+
+    qDebug() << "Message successfully added to database: chatId =" << chatId << ", senderId =" << fromId;
+}
+
+QJsonArray Server::getMessagesFromDatabase(const QString &login)
+{
+    QJsonArray chatsArray;
+
+    // Получение ID пользователя
+    int userId = -1;
+    QSqlQuery query(db);
+    query.prepare("SELECT Id FROM Users WHERE Login = :login");
+    query.bindValue(":login", login);
+    if (query.exec() && query.next()) {
+        userId = query.value(0).toInt();
+    } else {
+        qDebug() << "User not found in database:" << login;
+        return chatsArray;
+    }
+
+    // Получение всех чатов пользователя
+    query.prepare("SELECT Id, CASE WHEN IdName1 = :userId THEN IdName2 ELSE IdName1 END AS OtherUserId "
+                  "FROM Chats WHERE IdName1 = :userId OR IdName2 = :userId");
+    query.bindValue(":userId", userId);
+    if (!query.exec()) {
+        qDebug() << "Failed to retrieve chats for user:" << query.lastError().text();
+        return chatsArray;
+    }
+
+    // Обработка каждого чата
+    while (query.next()) {
+        int chatId = query.value("Id").toInt();
+        int otherUserId = query.value("OtherUserId").toInt();
+
+        // Получение имени собеседника
+        QSqlQuery userQuery(db);
+        userQuery.prepare("SELECT Login FROM Users WHERE Id = :id");
+        userQuery.bindValue(":id", otherUserId);
+        QString otherUserName;
+        if (userQuery.exec() && userQuery.next()) {
+            otherUserName = userQuery.value(0).toString();
+        } else {
+            qDebug() << "Failed to retrieve username for userId:" << otherUserId;
+            continue;
+        }
+
+        // Получение всех сообщений для текущего чата
+        QSqlQuery messagesQuery(db);
+        messagesQuery.prepare("SELECT SenderId, Message, Timestamp FROM Messages WHERE ChatId = :chatId ORDER BY Timestamp ASC");
+        messagesQuery.bindValue(":chatId", chatId);
+
+        QJsonArray messagesArray;
+        if (messagesQuery.exec()) {
+            while (messagesQuery.next()) {
+                QJsonObject messageObj;
+                int senderId = messagesQuery.value("SenderId").toInt();
+                messageObj["sender"] = (senderId == userId) ? login : otherUserName;
+                messageObj["message"] = messagesQuery.value("Message").toString();
+                messageObj["timestamp"] = messagesQuery.value("Timestamp").toString();
+                messagesArray.append(messageObj);
+            }
+        } else {
+            qDebug() << "Failed to retrieve messages for chatId:" << chatId;
+            continue;
+        }
+
+        // Формирование JSON-объекта для собеседника и его сообщений
+        QJsonObject chatObj;
+        chatObj["otherUser"] = otherUserName;
+        chatObj["messages"] = messagesArray;
+        chatsArray.append(chatObj);
+    }
+
+    return chatsArray;
+
+}
+
+QJsonArray Server::getAllClients(const QString &login)
+{
+    QJsonArray allClients;
+
+    QSqlQuery query(db);
+    query.prepare("SELECT Login FROM Users");
+
+    if (!query.exec()) {
+        qDebug() << "Some problem with get all clients" << query.lastError().text();
+        return allClients;
+    }
+
+    while(query.next()){
+        QString currentLogin = query.value("Login").toString();
+        if(currentLogin != login){
+            QJsonObject client;
+            QString currentLogin = query.value("Login").toString();
+            client["login"] = currentLogin;
+            if(clients.key(currentLogin, nullptr)){
+                client["online"] = "TRUE";
+            } else {
+                client["online"] = "FALSE";
+            }
+            allClients.append(client);
+        }
+    }
+
+    return allClients;
+}
+
 
 void Server::slotDisconnected()
 {
@@ -148,20 +354,21 @@ void Server::slotDisconnected()
     if (clients.contains(socket)) {
         qDebug() << "Client disconnected:" << clients.value(socket);
 
-        QJsonObject notification;
-        notification["type"] = "clients";
-        notification["status"] = "disconnect";
-        notification["message"] = "A new client has connected";
-        notification["login"] = clients[socket];
+        notifyAllClients(clients[socket], socket, "FALSE");
+        // QJsonObject notification;
+        // notification["type"] = "clients";
+        // notification["status"] = "disconnect";
+        // notification["message"] = "A new client has connected";
+        // notification["login"] = clients[socket];
 
-        QJsonDocument doc(notification);
-        QString message = QString::fromUtf8(doc.toJson(QJsonDocument::Compact));
+        // QJsonDocument doc(notification);
+        // QString message = QString::fromUtf8(doc.toJson(QJsonDocument::Compact));
 
-        for (QWebSocket *clientSocket : clients.keys()) {
-            if (clientSocket && clientSocket != socket) {
-                clientSocket->sendTextMessage(message);
-            }
-        }
+        // for (QWebSocket *clientSocket : clients.keys()) {
+        //     if (clientSocket && clientSocket != socket) {
+        //         clientSocket->sendTextMessage(message);
+        //     }
+        // }
 
         clients.remove(socket);
     } else {
@@ -262,6 +469,11 @@ QString Server::hashPassword(const QString &password, const QString &salt)
 bool Server::registrateNewClients(QWebSocket *socket, const QString &login, const QString &password)
 {
 
+    if (login.isEmpty() || password.isEmpty()) {
+        qDebug() << "Registration failed: login or password is empty.";
+        return false;
+    }
+
     db.transaction();  // Начало транзакции
 
     QString salt = generateSalt();
@@ -316,7 +528,9 @@ void Server::sendMessageToClients(const QJsonObject &jsonIncoming, QWebSocket *s
         response["message"] = status ? "Login successful" : "Invalid login or password";
 
         if(status){
-            response["clients"] = getOnlineClientsList(socket);
+            response["clients"] = getAllClients(jsonIncoming["login"].toString());//getOnlineClientsList(socket);
+            response["history_messages"] = getMessagesFromDatabase(jsonIncoming["login"].toString());
+
         }
 
     } else if (messageType == "registration") {
@@ -326,10 +540,11 @@ void Server::sendMessageToClients(const QJsonObject &jsonIncoming, QWebSocket *s
         response["message"] = status ? "Registration successful" : "Login is used, please try again";
 
         if(status){
-            response["clients"] = getOnlineClientsList(socket);
+            response["clients"] = getAllClients(jsonIncoming["login"].toString());//getOnlineClientsList(socket);
         }
         // добавить обработку других ошибок - мб статур error
     } else if (messageType == "chat") {
+
         response["type"] = "chat";
         response["from"] = jsonIncoming["from"];
         response["to"] = jsonIncoming["to"];
@@ -340,6 +555,7 @@ void Server::sendMessageToClients(const QJsonObject &jsonIncoming, QWebSocket *s
         if (tempSocket){
             socket = tempSocket;
             response["status"] = "success";
+            addMessageToDatabase(jsonIncoming);
         } else {
             response["status"] = "fail";
             response["message"] = "Client not found!";
@@ -356,12 +572,13 @@ void Server::sendMessageToClients(const QJsonObject &jsonIncoming, QWebSocket *s
 
 }
 
-void Server::notifyAllClients(const QString &newClientLogin, QWebSocket *socket) {
+void Server::notifyAllClients(const QString &newClientLogin, QWebSocket *socket, const QString &status) {
     QJsonObject notification;
-    notification["type"] = "clients";
-    notification["status"] = "connect";
+    notification["type"] = "update_clients";
+    // notification["status"] = status; //"connect";
     notification["message"] = "A new client has connected";
     notification["login"] = newClientLogin;
+    notification["online"] = status;
 
     QJsonDocument doc(notification);
     QString message = QString::fromUtf8(doc.toJson(QJsonDocument::Compact));

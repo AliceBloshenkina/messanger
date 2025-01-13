@@ -12,6 +12,8 @@
 #include <QJsonArray>
 #include <QJsonValue>
 #include <QTimer>
+#include <QListWidget>
+#include <QListWidgetItem>
 #include "systemmessage.h"
 
 namespace Ui {
@@ -35,12 +37,14 @@ signals:
     void onSuccess();
     void onError();
     void somethingWrong();
+    void chooseUser();
 
 private slots:
     void on_pushButton_clicked();
     // void slotOnConnected();
     void slotDisconnected();
     void slotTextMessageReceived(const QString &message);
+    void onUserSelected(QListWidgetItem *item);
 
 
 
@@ -50,12 +54,16 @@ private:
     QString password;
     QString toLogin;
     QWebSocket *socket;
+    QJsonArray history;
+    QHash<QString, QListWidgetItem*> userItemMap;
     // QByteArray Data;
     void SendToServer(QString str, QString toLogin);
     // quint16 nextBlockSize;
-    void handleClients(QJsonArray clients);
-    void handleAddNewClient(QJsonObject newClient);
-    void handleRemoveNewClient(QJsonObject client);
+    void handleClients(const QJsonArray &clients);
+    void handleAddNewClient(const QJsonObject &newClient);
+    void handleRemoveClient(const QJsonObject &client);
+    void getHistoryOfMessages();
+    void loadChatHistory(const QString &user);
 
     void showInitialState();
     void restoreChatState();

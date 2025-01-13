@@ -63,13 +63,18 @@ private:
     bool executeQuery(const QString &queryString, const QMap<QString, QVariant> &params, QSqlQuery *query);
     QString generateSalt();
     QString hashPassword(const QString &password, const QString &salt);
+    bool initializeDatabase();
 
 
     void handleLogin(QWebSocket* socket, const QJsonObject &jsonObj);
     void handleRegistration(QWebSocket* socket,const QJsonObject &jsonObj);
     void handleChatMessage(QWebSocket *socket, const QJsonObject &jsonObj);
     QJsonArray getOnlineClientsList(QWebSocket *socket);
-    void notifyAllClients(const QString &newClientLogin, QWebSocket *socket);
+    // QJsonArray get
+    void notifyAllClients(const QString &newClientLogin, QWebSocket *socket, const QString &status);
+    void addMessageToDatabase(const QJsonObject &jsonObj);
+    QJsonArray getMessagesFromDatabase(const QString &login);
+    QJsonArray getAllClients(const QString &login);
 };
 
 #endif // SERVER_H

@@ -43,23 +43,31 @@ static constexpr auto qt_meta_stringdata_CLASSDialogENDCLASS = QtMocHelpers::str
     "",
     "onError",
     "somethingWrong",
+    "chooseUser",
     "on_pushButton_clicked",
     "slotDisconnected",
     "slotTextMessageReceived",
-    "message"
+    "message",
+    "onUserSelected",
+    "QListWidgetItem*",
+    "item"
 );
 #else  // !QT_MOC_HAS_STRING_DATA
 struct qt_meta_stringdata_CLASSDialogENDCLASS_t {
-    uint offsetsAndSizes[18];
+    uint offsetsAndSizes[26];
     char stringdata0[7];
     char stringdata1[10];
     char stringdata2[1];
     char stringdata3[8];
     char stringdata4[15];
-    char stringdata5[22];
-    char stringdata6[17];
-    char stringdata7[24];
-    char stringdata8[8];
+    char stringdata5[11];
+    char stringdata6[22];
+    char stringdata7[17];
+    char stringdata8[24];
+    char stringdata9[8];
+    char stringdata10[15];
+    char stringdata11[17];
+    char stringdata12[5];
 };
 #define QT_MOC_LITERAL(ofs, len) \
     uint(sizeof(qt_meta_stringdata_CLASSDialogENDCLASS_t::offsetsAndSizes) + ofs), len 
@@ -70,20 +78,28 @@ Q_CONSTINIT static const qt_meta_stringdata_CLASSDialogENDCLASS_t qt_meta_string
         QT_MOC_LITERAL(17, 0),  // ""
         QT_MOC_LITERAL(18, 7),  // "onError"
         QT_MOC_LITERAL(26, 14),  // "somethingWrong"
-        QT_MOC_LITERAL(41, 21),  // "on_pushButton_clicked"
-        QT_MOC_LITERAL(63, 16),  // "slotDisconnected"
-        QT_MOC_LITERAL(80, 23),  // "slotTextMessageReceived"
-        QT_MOC_LITERAL(104, 7)   // "message"
+        QT_MOC_LITERAL(41, 10),  // "chooseUser"
+        QT_MOC_LITERAL(52, 21),  // "on_pushButton_clicked"
+        QT_MOC_LITERAL(74, 16),  // "slotDisconnected"
+        QT_MOC_LITERAL(91, 23),  // "slotTextMessageReceived"
+        QT_MOC_LITERAL(115, 7),  // "message"
+        QT_MOC_LITERAL(123, 14),  // "onUserSelected"
+        QT_MOC_LITERAL(138, 16),  // "QListWidgetItem*"
+        QT_MOC_LITERAL(155, 4)   // "item"
     },
     "Dialog",
     "onSuccess",
     "",
     "onError",
     "somethingWrong",
+    "chooseUser",
     "on_pushButton_clicked",
     "slotDisconnected",
     "slotTextMessageReceived",
-    "message"
+    "message",
+    "onUserSelected",
+    "QListWidgetItem*",
+    "item"
 };
 #undef QT_MOC_LITERAL
 #endif // !QT_MOC_HAS_STRING_DATA
@@ -95,24 +111,27 @@ Q_CONSTINIT static const uint qt_meta_data_CLASSDialogENDCLASS[] = {
       12,       // revision
        0,       // classname
        0,    0, // classinfo
-       6,   14, // methods
+       8,   14, // methods
        0,    0, // properties
        0,    0, // enums/sets
        0,    0, // constructors
        0,       // flags
-       3,       // signalCount
+       4,       // signalCount
 
  // signals: name, argc, parameters, tag, flags, initial metatype offsets
-       1,    0,   50,    2, 0x06,    1 /* Public */,
-       3,    0,   51,    2, 0x06,    2 /* Public */,
-       4,    0,   52,    2, 0x06,    3 /* Public */,
+       1,    0,   62,    2, 0x06,    1 /* Public */,
+       3,    0,   63,    2, 0x06,    2 /* Public */,
+       4,    0,   64,    2, 0x06,    3 /* Public */,
+       5,    0,   65,    2, 0x06,    4 /* Public */,
 
  // slots: name, argc, parameters, tag, flags, initial metatype offsets
-       5,    0,   53,    2, 0x08,    4 /* Private */,
-       6,    0,   54,    2, 0x08,    5 /* Private */,
-       7,    1,   55,    2, 0x08,    6 /* Private */,
+       6,    0,   66,    2, 0x08,    5 /* Private */,
+       7,    0,   67,    2, 0x08,    6 /* Private */,
+       8,    1,   68,    2, 0x08,    7 /* Private */,
+      10,    1,   71,    2, 0x08,    9 /* Private */,
 
  // signals: parameters
+    QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
     QMetaType::Void,
@@ -120,7 +139,8 @@ Q_CONSTINIT static const uint qt_meta_data_CLASSDialogENDCLASS[] = {
  // slots: parameters
     QMetaType::Void,
     QMetaType::Void,
-    QMetaType::Void, QMetaType::QString,    8,
+    QMetaType::Void, QMetaType::QString,    9,
+    QMetaType::Void, 0x80000000 | 11,   12,
 
        0        // eod
 };
@@ -140,13 +160,18 @@ Q_CONSTINIT const QMetaObject Dialog::staticMetaObject = { {
         QtPrivate::TypeAndForceComplete<void, std::false_type>,
         // method 'somethingWrong'
         QtPrivate::TypeAndForceComplete<void, std::false_type>,
+        // method 'chooseUser'
+        QtPrivate::TypeAndForceComplete<void, std::false_type>,
         // method 'on_pushButton_clicked'
         QtPrivate::TypeAndForceComplete<void, std::false_type>,
         // method 'slotDisconnected'
         QtPrivate::TypeAndForceComplete<void, std::false_type>,
         // method 'slotTextMessageReceived'
         QtPrivate::TypeAndForceComplete<void, std::false_type>,
-        QtPrivate::TypeAndForceComplete<const QString &, std::false_type>
+        QtPrivate::TypeAndForceComplete<const QString &, std::false_type>,
+        // method 'onUserSelected'
+        QtPrivate::TypeAndForceComplete<void, std::false_type>,
+        QtPrivate::TypeAndForceComplete<QListWidgetItem *, std::false_type>
     >,
     nullptr
 } };
@@ -160,9 +185,11 @@ void Dialog::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void
         case 0: _t->onSuccess(); break;
         case 1: _t->onError(); break;
         case 2: _t->somethingWrong(); break;
-        case 3: _t->on_pushButton_clicked(); break;
-        case 4: _t->slotDisconnected(); break;
-        case 5: _t->slotTextMessageReceived((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
+        case 3: _t->chooseUser(); break;
+        case 4: _t->on_pushButton_clicked(); break;
+        case 5: _t->slotDisconnected(); break;
+        case 6: _t->slotTextMessageReceived((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
+        case 7: _t->onUserSelected((*reinterpret_cast< std::add_pointer_t<QListWidgetItem*>>(_a[1]))); break;
         default: ;
         }
     } else if (_c == QMetaObject::IndexOfMethod) {
@@ -188,6 +215,13 @@ void Dialog::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void
                 return;
             }
         }
+        {
+            using _t = void (Dialog::*)();
+            if (_t _q_method = &Dialog::chooseUser; *reinterpret_cast<_t *>(_a[1]) == _q_method) {
+                *result = 3;
+                return;
+            }
+        }
     }
 }
 
@@ -210,13 +244,13 @@ int Dialog::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 6)
+        if (_id < 8)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 6;
+        _id -= 8;
     } else if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 6)
+        if (_id < 8)
             *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
-        _id -= 6;
+        _id -= 8;
     }
     return _id;
 }
@@ -237,5 +271,11 @@ void Dialog::onError()
 void Dialog::somethingWrong()
 {
     QMetaObject::activate(this, &staticMetaObject, 2, nullptr);
+}
+
+// SIGNAL 3
+void Dialog::chooseUser()
+{
+    QMetaObject::activate(this, &staticMetaObject, 3, nullptr);
 }
 QT_WARNING_POP
