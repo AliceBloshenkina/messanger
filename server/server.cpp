@@ -528,7 +528,8 @@ void Server::sendMessageToClients(const QJsonObject &jsonIncoming, QWebSocket *s
         response["message"] = status ? "Login successful" : "Invalid login or password";
 
         if(status){
-            response["clients"] = getAllClients(jsonIncoming["login"].toString());//getOnlineClientsList(socket);
+            response["clients"] = getAllClients(jsonIncoming["login"].toString());
+            //getOnlineClientsList(socket);
             response["history_messages"] = getMessagesFromDatabase(jsonIncoming["login"].toString());
 
         }
@@ -576,7 +577,7 @@ void Server::notifyAllClients(const QString &newClientLogin, QWebSocket *socket,
     QJsonObject notification;
     notification["type"] = "update_clients";
     // notification["status"] = status; //"connect";
-    notification["message"] = "A new client has connected";
+    // notification["message"] = "A new client has connected";
     notification["login"] = newClientLogin;
     notification["online"] = status;
 
@@ -585,11 +586,14 @@ void Server::notifyAllClients(const QString &newClientLogin, QWebSocket *socket,
 
     for (QWebSocket *clientSocket : clients.keys()) {
         if (clientSocket && clientSocket != socket) {
+            qDebug() << "Sending notification to client:" << clients[clientSocket];
             clientSocket->sendTextMessage(message);
+        } else {
+            qDebug() << "Skipping notification for socket:" << clients[clientSocket];
         }
     }
 
-    qDebug() << "Notification sent to all clients about new client:" << newClientLogin;
+        qDebug() << "Notification about" << newClientLogin << "with status" << status << "sent to all clients.";
 }
 
 

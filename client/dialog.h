@@ -62,7 +62,7 @@ private:
     void handleClients(const QJsonArray &clients);
     void handleAddNewClient(const QJsonObject &newClient);
     void handleRemoveClient(const QJsonObject &client);
-    void getHistoryOfMessages();
+    // void getHistoryOfMessages();
     void loadChatHistory(const QString &user);
 
     void showInitialState();

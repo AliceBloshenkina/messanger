@@ -69,8 +69,8 @@ void Dialog::SendToServer(QString str, QString toLogin)
     request["type"] = "chat";
     request["from"] = login;
     //УБРАТЬ
-    QString toLogin2 = toLogin.split(" ").first();
-    request["to"] = toLogin2;
+    // QString toLogin2 = toLogin.split(" ").first();
+    request["to"] = toLogin;
     request["message"] = str;
 
     QJsonDocument doc(request);
@@ -151,28 +151,24 @@ void Dialog::handleAddNewClient(const QJsonObject &newClient)
 
         if (!login.isEmpty()) {
 
+            qDebug() << "NEW LOGIN - " << login << onlineStatus;
+
             if (userItemMap.contains(login)) {
 
+                qDebug() << "IMHERE ";
                 QListWidgetItem *item = userItemMap[login];
                 QString updatedText = login + " (" + (onlineStatus == "TRUE" ? "online" : "offline") + ")";
                 item->setText(updatedText);
 
 
-                if (onlineStatus == "TRUE") {
-                    item->setForeground(Qt::green);
-                } else {
-                    item->setForeground(Qt::red);
-                }
+                 item->setForeground(onlineStatus == "TRUE" ? Qt::green : Qt::red);
             } else {
 
                 QString displayText = login + " (" + (onlineStatus == "TRUE" ? "online" : "offline") + ")";
-                QListWidgetItem *item = new QListWidgetItem(displayText, ui->userListWidget);
+                QListWidgetItem *item = new QListWidgetItem(login, ui->userListWidget);
 
-                if (onlineStatus == "TRUE") {
-                    item->setForeground(Qt::green);
-                } else {
-                    item->setForeground(Qt::red);
-                }
+                item->setText(displayText);
+                item->setForeground(onlineStatus == "TRUE" ? Qt::green : Qt::red);
 
                 userItemMap.insert(login, item);
                 ui->userListWidget->addItem(item);
@@ -197,7 +193,7 @@ void Dialog::slotTextMessageReceived(const QString &message)
         return;
     }
 
-    qDebug() << "Message received from:" << socket->peerAddress().toString() << ":" << message;
+    // qDebug() << "Message received from:" << socket->peerAddress().toString() << ":" << message;
 
     QJsonDocument docJson = QJsonDocument::fromJson(message.toUtf8());
     if(!docJson.isObject()){
@@ -247,9 +243,9 @@ void Dialog::slotTextMessageReceived(const QString &message)
             ui->textBrowser->append("Message delivery failed: " + jsonObj["message"].toString());
         }
     } else if(typeMessage == "update_clients") {
-        if(jsonObj["status"] == "TRUE"){
+        if(jsonObj["online"] == "TRUE"){
             handleAddNewClient(jsonObj);
-        } else if (jsonObj["status"] == "FALSE"){
+        } else if (jsonObj["online"] == "FALSE"){
             handleRemoveClient(jsonObj);
         }
     // } else if(typeMessage == "") {
@@ -270,7 +266,9 @@ void Dialog::onUserSelected(QListWidgetItem *item)
         return;
     }
 
-    QString selectedUser = item->text(); // Имя выбранного пользователя
+   // QListWidgetItem *item = /*userItemMap*/[login]
+
+    QString selectedUser = userItemMap.key(item); // Имя выбранного пользователя
     qDebug() << "Selected user:" << selectedUser;
 
     // Восстанавливаем интерфейс чата
@@ -290,15 +288,15 @@ void Dialog::loadChatHistory(const QString &user)
     ui->textBrowser->clear(); // Очистка текстового поля
 
     //УБРАТЬ
-    QString userName = user.split(" ").first();
+    // QString userName = user.split(" ").first();
     // Ищем сообщения, связанные с этим пользователем
     for (const QJsonValue &chatValue : history) {
         QJsonObject chatObj = chatValue.toObject();
         QString otherUser = chatObj["otherUser"].toString();
 
-        qDebug() << "Checking chat for user:" << userName << "against otherUser:" << otherUser;
+        // qDebug() << "Checking chat for user:" << userName << "against otherUser:" << otherUser;
 
-        if (otherUser == userName) {
+        if (otherUser == user) {
             QJsonArray messages = chatObj["messages"].toArray();
             for (const QJsonValue &messageValue : messages) {
                 QJsonObject messageObj = messageValue.toObject();
