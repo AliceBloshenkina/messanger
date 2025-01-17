@@ -307,6 +307,14 @@ QJsonArray Server::getMessagesFromDatabase(const QString &login)
         QJsonObject chatObj;
         chatObj["otherUser"] = otherUserName;
         chatObj["messages"] = messagesArray;
+        qDebug() << "ИМЯ " << otherUserName;
+        if(clients.key(otherUserName, nullptr)){
+            chatObj["online"] = "TRUE";
+            qDebug() << "статус тру";
+        } else {
+            chatObj["online"] = "FALSE";
+            qDebug() << "статус false";
+        }
         chatsArray.append(chatObj);
     }
 
@@ -528,7 +536,7 @@ void Server::sendMessageToClients(const QJsonObject &jsonIncoming, QWebSocket *s
         response["message"] = status ? "Login successful" : "Invalid login or password";
 
         if(status){
-            response["clients"] = getAllClients(jsonIncoming["login"].toString());
+            // response["clients"] = getAllClients(jsonIncoming["login"].toString());
             //getOnlineClientsList(socket);
             response["history_messages"] = getMessagesFromDatabase(jsonIncoming["login"].toString());
 
@@ -541,7 +549,7 @@ void Server::sendMessageToClients(const QJsonObject &jsonIncoming, QWebSocket *s
         response["message"] = status ? "Registration successful" : "Login is used, please try again";
 
         if(status){
-            response["clients"] = getAllClients(jsonIncoming["login"].toString());//getOnlineClientsList(socket);
+            // response["clients"] = getAllClients(jsonIncoming["login"].toString());//getOnlineClientsList(socket);
         }
         // добавить обработку других ошибок - мб статур error
     } else if (messageType == "chat") {

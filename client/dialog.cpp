@@ -14,8 +14,6 @@ Dialog::Dialog(QWidget *parent)
     // connect(socket, &QWebSocket::connected, this, &Dialog::slotOnConnected);
     connect(socket, &QWebSocket::disconnected, this, &Dialog::slotDisconnected);
     connect(socket, &QWebSocket::textMessageReceived, this, &Dialog::slotTextMessageReceived);
-    // connect()
-
 }
 
 Dialog::~Dialog()
@@ -35,7 +33,7 @@ bool Dialog::socketConnect(SystemMessage typeMessage)
     }
 
     // QSslConfiguration sslConfig;
-    // sslConfig.setPeerVerifyMode(QSslSocket::VerifyNone); // Отключение проверки сертификата (только для разработки)
+    // sslConfig.setPeerVerifyMode(QSslSocket::VerifyNone); // Отключение проверки сертификата
     // socket->setSslConfiguration(sslConfig);
     socket->open(QUrl("ws://127.0.0.1:1111"));
 
@@ -52,7 +50,6 @@ bool Dialog::socketConnect(SystemMessage typeMessage)
 
     connect(socket, QOverload<QAbstractSocket::SocketError>::of(&QWebSocket::errorOccurred), this, [](QAbstractSocket::SocketError error) {
         qDebug() << "Connection error:" << error;
-        // return false; //???????????????
     });
 
     return true;
@@ -68,8 +65,6 @@ void Dialog::SendToServer(QString str, QString toLogin)
     QJsonObject request;
     request["type"] = "chat";
     request["from"] = login;
-    //УБРАТЬ
-    // QString toLogin2 = toLogin.split(" ").first();
     request["to"] = toLogin;
     request["message"] = str;
 
@@ -80,44 +75,31 @@ void Dialog::SendToServer(QString str, QString toLogin)
 
 void Dialog::handleClients(const QJsonArray &clients)
 {
-    // Очищаем список пользователей перед добавлением новых
     ui->userListWidget->clear();
 
-    // Проходимся по каждому объекту в массиве
-    for (const QJsonValue &clientValue : clients) {
-        QJsonObject clientObj = clientValue.toObject();
-        handleAddNewClient(clientObj);
+    // for (const QJsonValue &clientValue : clients) {
+    //     QJsonObject clientObj = clientValue.toObject();
+    //     handleAddNewClient(clientObj);
+    // }
+
+    ui->textBrowser->clear();
+
+    for (const QJsonValue &chatValue : history) {
+        QJsonObject chatObj = chatValue.toObject();
+        // QString otherUser = chatObj["otherUser"].toString();
+        QJsonObject person;
+        person["login"] = chatObj["otherUser"].toString();
+
+        person["online"] = chatObj["online"].toString();
+
+        qDebug() << " LOGIN ONLINE - " << person["login"] <<  person["online"];
+        handleAddNewClient(person);
     }
 
-    // Подключаем обработчик нажатия на элемент списка
-    // connect(ui->userListWidget, &QListWidget::itemClicked, this, [=](QListWidgetItem *item) {
-    //     if (item) {
-    //         restoreChatState();
-    //         ui->titleLabel->setText(item->text()); // Устанавливаем выбранный логин в поле "To"
-    //     }
-    // });
     connect(ui->userListWidget, &QListWidget::itemClicked, this, &Dialog::onUserSelected);
 
     qDebug() << "User list updated with" << clients.size() << "clients.";
 }
-
-// void Dialog::handleRemoveNewClient(const QJsonObject &client)
-// {
-//     if (!client.isEmpty()) {
-//         QString login = client["login"].toString(); // Получаем логин пользователя
-
-//         if (!login.isEmpty()) {
-//             // Проходим по всем элементам QListWidget
-//             for (int i = 0; i < ui->userListWidget->count(); ++i) {
-//                 QListWidgetItem *item = ui->userListWidget->item(i);
-//                 if (item && item->text() == login) { // Сравниваем текст элемента с логином
-//                     delete ui->userListWidget->takeItem(i); // Удаляем элемент из списка
-//                     break; // Останавливаем цикл после удаления
-//                 }
-//             }
-//         }
-//     }
-// }
 
 void Dialog::handleRemoveClient(const QJsonObject &client)
 {
@@ -125,14 +107,11 @@ void Dialog::handleRemoveClient(const QJsonObject &client)
         QString login = client["login"].toString(); // Получаем логин пользователя
 
         if (userItemMap.contains(login)) {
-            // Находим элемент в списке
+
             QListWidgetItem *item = userItemMap[login];
 
-            // Обновляем текст с новым статусом "offline"
             QString updatedText = login + " (offline)";
             item->setText(updatedText);
-
-            // Устанавливаем цвет текста для оффлайн-статуса
             item->setForeground(Qt::red);
 
             qDebug() << "Updated client to offline:" << login;
@@ -145,10 +124,12 @@ void Dialog::handleRemoveClient(const QJsonObject &client)
 
 void Dialog::handleAddNewClient(const QJsonObject &newClient)
 {
+    qDebug() << "Добавляем нового клиента в список";
     if (!newClient.isEmpty()) {
-        QString login = newClient["login"].toString();         // Получаем логин пользователя
-        QString onlineStatus = newClient["online"].toString(); // Получаем статус пользователя
-
+        qDebug() << "Новый клиент не пустой";
+        QString login = newClient["login"].toString();
+        QString onlineStatus = newClient["online"].toString();
+qDebug() << "NEW LOGIN - " << login << onlineStatus;
         if (!login.isEmpty()) {
 
             qDebug() << "NEW LOGIN - " << login << onlineStatus;
@@ -164,6 +145,7 @@ void Dialog::handleAddNewClient(const QJsonObject &newClient)
                  item->setForeground(onlineStatus == "TRUE" ? Qt::green : Qt::red);
             } else {
 
+                qDebug() << "Добавляем 2";
                 QString displayText = login + " (" + (onlineStatus == "TRUE" ? "online" : "offline") + ")";
                 QListWidgetItem *item = new QListWidgetItem(login, ui->userListWidget);
 
@@ -193,8 +175,6 @@ void Dialog::slotTextMessageReceived(const QString &message)
         return;
     }
 
-    // qDebug() << "Message received from:" << socket->peerAddress().toString() << ":" << message;
-
     QJsonDocument docJson = QJsonDocument::fromJson(message.toUtf8());
     if(!docJson.isObject()){
         qDebug() << "Invalod format message";
@@ -205,17 +185,20 @@ void Dialog::slotTextMessageReceived(const QString &message)
     QString typeMessage = jsonObj["type"].toString();
 
     if (typeMessage == "login") {
-        // handleLogin(socket, jsonObj);
+
         if(jsonObj["status"] == "success"){
             ui->textBrowser->append(login + " successfully logged in.");
 
 
-            if (jsonObj.contains("history_messages") && jsonObj["history_messages"].isArray()) {
+            if (jsonObj.contains("history_messages") ) { // && jsonObj["history_messages"].isArray()
+                qDebug() << "я начал историю";
                 history = jsonObj["history_messages"].toArray();
+                // handleClients(jsonObj["clients"].toArray());
+                handleClients(jsonObj["history_messages"].toArray());
             } else {
                 qDebug() << "Key 'history_messages' not found or is not an array.";
             }
-            handleClients(jsonObj["clients"].toArray());
+            // handleClients(jsonObj["clients"].toArray());
             showInitialState();
 
             emit onSuccess();
@@ -224,19 +207,18 @@ void Dialog::slotTextMessageReceived(const QString &message)
             emit onError();
         }
     } else if (typeMessage == "registration"){
-        // handleRegistration(socket, jsonObj);
         if(jsonObj["status"] == "success"){
             ui->textBrowser->append(login + " successfully registered.");
-            handleClients(jsonObj["clients"].toArray());
+            // убрать вывод всех клиентов на экран
+            // handleClients(jsonObj["clients"].toArray());
             showInitialState();
-            //вывод списка клиентов на экран
+
             emit onSuccess();
         } else if (jsonObj["status"] == "fail") {
             ui->textBrowser->append(login + " registration failed.");
             emit onError();
         }
     } else if (typeMessage == "chat") {
-        // handleChatMessage(socket, jsonObj);
         if(jsonObj["status"] == "success"){
             ui->textBrowser->append(jsonObj["from"].toString() + ": " + jsonObj["message"].toString());
         } else if (jsonObj["status"] == "fail") {
@@ -248,8 +230,6 @@ void Dialog::slotTextMessageReceived(const QString &message)
         } else if (jsonObj["online"] == "FALSE"){
             handleRemoveClient(jsonObj);
         }
-    // } else if(typeMessage == "") {
-
     } else {
         qDebug() << "Unknown message type.";
     }
@@ -265,19 +245,10 @@ void Dialog::onUserSelected(QListWidgetItem *item)
         qDebug() << "No item selected.";
         return;
     }
-
-   // QListWidgetItem *item = /*userItemMap*/[login]
-
-    QString selectedUser = userItemMap.key(item); // Имя выбранного пользователя
+    QString selectedUser = userItemMap.key(item);
     qDebug() << "Selected user:" << selectedUser;
-
-    // Восстанавливаем интерфейс чата
     restoreChatState();
-
-    // Устанавливаем имя выбранного пользователя
     ui->titleLabel->setText(selectedUser);
-
-    // Можно загрузить историю сообщений с этим пользователем
     loadChatHistory(selectedUser);
 
 
@@ -285,11 +256,8 @@ void Dialog::onUserSelected(QListWidgetItem *item)
 
 void Dialog::loadChatHistory(const QString &user)
 {
-    ui->textBrowser->clear(); // Очистка текстового поля
+    ui->textBrowser->clear();
 
-    //УБРАТЬ
-    // QString userName = user.split(" ").first();
-    // Ищем сообщения, связанные с этим пользователем
     for (const QJsonValue &chatValue : history) {
         QJsonObject chatObj = chatValue.toObject();
         QString otherUser = chatObj["otherUser"].toString();
@@ -306,7 +274,7 @@ void Dialog::loadChatHistory(const QString &user)
 
                 ui->textBrowser->append("[" + timestamp + "] " + sender + ": " + message);
             }
-            break; // История найдена, дальше искать не нужно
+            break;
         }
     }
 }
@@ -320,7 +288,6 @@ void Dialog::slotDisconnected()
 
     emit onError();
 
-    // Попытка переподключения через 5 секунд
     QTimer::singleShot(5000, this, [this]() {
         qDebug() << "Attempting to reconnect...";
         socket->open(QUrl("ws://127.0.0.1:1111"));
@@ -335,14 +302,11 @@ void Dialog::on_pushButton_clicked()
 
 void Dialog::showInitialState()
 {
-    // Скрываем lineEdit и pushButton
     ui->lineEdit->hide();
     ui->pushButton->hide();
 
-    // Увеличиваем textBrowser
-    ui->textBrowser->setGeometry(140, 60, 350, 410); // Растянуть на область lineEdit и pushButton
+    ui->textBrowser->setGeometry(140, 60, 350, 410);
 
-    // Отображаем текст в центре
     ui->textBrowser->clear();
     ui->textBrowser->setAlignment(Qt::AlignCenter);
     ui->textBrowser->append("Добро пожаловать! Выберите пользователя для начала чата.");
@@ -350,15 +314,12 @@ void Dialog::showInitialState()
 
 void Dialog::restoreChatState()
 {
-    // Показываем lineEdit и pushButton
     ui->lineEdit->show();
     ui->pushButton->show();
 
     ui->textBrowser->clear();
-    // Восстанавливаем размер textBrowser
     ui->textBrowser->setGeometry(140, 60, 350, 351);
 
-    // Очищаем выравнивание текста
     ui->textBrowser->setAlignment(Qt::AlignLeft);
 
 }
