@@ -40,7 +40,7 @@ signals:
     void chooseUser();
 
 protected:
-    void focusInEvent(QFocusEvent *event) override;
+    // void focusInEvent(QFocusEvent *event) override;
 
 
 private slots:
@@ -58,6 +58,7 @@ private:
     QString password;
     QString toLogin;
     QWebSocket *socket;
+      QListWidget *userDropdown = nullptr;
     // QListWidget *userDropdown;
     QJsonArray history;
     QHash<QString, QListWidgetItem*> userItemMap;

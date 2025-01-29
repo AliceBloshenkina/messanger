@@ -75,6 +75,7 @@ private:
     void addMessageToDatabase(const QJsonObject &jsonObj);
     QJsonArray getMessagesFromDatabase(const QString &login);
     QJsonArray getAllClients(const QString &login);
+    QJsonArray getClientsByName(const QString &login, const QString &letters);
 };
 
 #endif // SERVER_H

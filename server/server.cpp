@@ -168,7 +168,6 @@ void Server::handleChatMessage(QWebSocket *socket, const QJsonObject &jsonObj)
 
 void Server::addMessageToDatabase(const QJsonObject &jsonObj)
 {
-    // Проверка наличия всех необходимых ключей
     if (!jsonObj.contains("from") || !jsonObj.contains("to") || !jsonObj.contains("message")) {
         qDebug() << "Invalid chat message format: missing fields.";
         return;
@@ -178,7 +177,6 @@ void Server::addMessageToDatabase(const QJsonObject &jsonObj)
     QString toLogin = jsonObj["to"].toString();
     QString message = jsonObj["message"].toString();
 
-    // Проверка валидности данных
     if (fromLogin.isEmpty() || toLogin.isEmpty() || message.isEmpty()) {
         qDebug() << "Invalid chat message: empty sender, receiver, or message.";
         return;
@@ -186,7 +184,6 @@ void Server::addMessageToDatabase(const QJsonObject &jsonObj)
 
     QSqlQuery query(db);
 
-    // Получение ID отправителя и получателя
     int fromId = -1, toId = -1;
     query.prepare("SELECT Id FROM Users WHERE Login = :login");
     query.bindValue(":login", fromLogin);
@@ -205,7 +202,6 @@ void Server::addMessageToDatabase(const QJsonObject &jsonObj)
         return;
     }
 
-    // Получение или создание чата между пользователями
     int chatId = -1;
     query.prepare("SELECT Id FROM Chats WHERE (IdName1 = :fromId AND IdName2 = :toId) "
                   "OR (IdName1 = :toId AND IdName2 = :fromId)");
@@ -215,9 +211,8 @@ void Server::addMessageToDatabase(const QJsonObject &jsonObj)
     if (query.exec() && query.next()) {
         chatId = query.value(0).toInt();
     } else {
-        // Создание чата, если он не существует
         query.prepare("INSERT INTO Chats (IdName1, IdName2) VALUES (:fromId, :toId)");
-        query.bindValue(":fromId", qMin(fromId, toId)); // Упорядочиваем ID для уникальности
+        query.bindValue(":fromId", qMin(fromId, toId));
         query.bindValue(":toId", qMax(fromId, toId));
         if (query.exec()) {
             chatId = query.lastInsertId().toInt();
@@ -228,7 +223,6 @@ void Server::addMessageToDatabase(const QJsonObject &jsonObj)
         }
     }
 
-    // Добавление сообщения в таблицу Messages
     query.prepare("INSERT INTO Messages (ChatId, SenderId, Message) VALUES (:chatId, :senderId, :message)");
     query.bindValue(":chatId", chatId);
     query.bindValue(":senderId", fromId);
@@ -246,7 +240,6 @@ QJsonArray Server::getMessagesFromDatabase(const QString &login)
 {
     QJsonArray chatsArray;
 
-    // Получение ID пользователя
     int userId = -1;
     QSqlQuery query(db);
     query.prepare("SELECT Id FROM Users WHERE Login = :login");
@@ -258,7 +251,6 @@ QJsonArray Server::getMessagesFromDatabase(const QString &login)
         return chatsArray;
     }
 
-    // Получение всех чатов пользователя
     query.prepare("SELECT Id, CASE WHEN IdName1 = :userId THEN IdName2 ELSE IdName1 END AS OtherUserId "
                   "FROM Chats WHERE IdName1 = :userId OR IdName2 = :userId");
     query.bindValue(":userId", userId);
@@ -267,12 +259,10 @@ QJsonArray Server::getMessagesFromDatabase(const QString &login)
         return chatsArray;
     }
 
-    // Обработка каждого чата
     while (query.next()) {
         int chatId = query.value("Id").toInt();
         int otherUserId = query.value("OtherUserId").toInt();
 
-        // Получение имени собеседника
         QSqlQuery userQuery(db);
         userQuery.prepare("SELECT Login FROM Users WHERE Id = :id");
         userQuery.bindValue(":id", otherUserId);
@@ -284,7 +274,6 @@ QJsonArray Server::getMessagesFromDatabase(const QString &login)
             continue;
         }
 
-        // Получение всех сообщений для текущего чата
         QSqlQuery messagesQuery(db);
         messagesQuery.prepare("SELECT SenderId, Message, Timestamp FROM Messages WHERE ChatId = :chatId ORDER BY Timestamp ASC");
         messagesQuery.bindValue(":chatId", chatId);
@@ -304,7 +293,6 @@ QJsonArray Server::getMessagesFromDatabase(const QString &login)
             continue;
         }
 
-        // Формирование JSON-объекта для собеседника и его сообщений
         QJsonObject chatObj;
         chatObj["otherUser"] = otherUserName;
         chatObj["messages"] = messagesArray;
@@ -329,6 +317,38 @@ QJsonArray Server::getAllClients(const QString &login)
 
     QSqlQuery query(db);
     query.prepare("SELECT Login FROM Users");
+
+    if (!query.exec()) {
+        qDebug() << "Some problem with get all clients" << query.lastError().text();
+        return allClients;
+    }
+
+    while(query.next()){
+        QString currentLogin = query.value("Login").toString();
+        if(currentLogin != login){
+            QJsonObject client;
+            QString currentLogin = query.value("Login").toString();
+            client["login"] = currentLogin;
+            if(clients.key(currentLogin, nullptr)){
+                client["online"] = "TRUE";
+            } else {
+                client["online"] = "FALSE";
+            }
+            allClients.append(client);
+        }
+    }
+
+    return allClients;
+}
+
+QJsonArray Server::getClientsByName(const QString &login, const QString &letters)
+{
+    QJsonArray allClients;
+
+    QSqlQuery query(db);
+    query.prepare("SELECT Login FROM Users WHERE Login LIKE :letters");
+    query.bindValue(":letters", letters + "%");
+
 
     if (!query.exec()) {
         qDebug() << "Some problem with get all clients" << query.lastError().text();
@@ -423,7 +443,7 @@ bool Server::processLoginRequest(QWebSocket *socket, const QString &login, const
 
     if (!executeQuery(checkQuery, params, &query)) {
         qDebug() << "Error checking user in database. Rolling back transaction.";
-        db.rollback();  // Откат транзакции
+        db.rollback();
         // socket->disconnectFromHost();
         return false;
     }
@@ -433,14 +453,11 @@ bool Server::processLoginRequest(QWebSocket *socket, const QString &login, const
         QString dbHash = query.value("Password").toString();
         QString dbSalt = query.value("Salt").toString();
 
-        // Сравнение пароля
         if (hashPassword(password, dbSalt) == dbHash) {
             qDebug() << "User password is OK";
 
-            // Добавление пользователя в список клиентов
             clients.insert(socket, login);
 
-            // Коммит транзакции
             if (!db.commit()) {
                 qDebug() << "Error committing transaction:" << db.lastError().text();
                 // socket->disconnectFromHost();
@@ -450,13 +467,13 @@ bool Server::processLoginRequest(QWebSocket *socket, const QString &login, const
             return true;
         } else {
             qDebug() << "User password is NOT OK";
-            db.rollback(); // Откат транзакции
+            db.rollback();
             // socket->disconnectFromHost();
             return false;
         }
     } else {
         qDebug() << "User not found";
-        db.rollback(); // Откат транзакции
+        db.rollback();
         // socket->disconnectFromHost();
         return false;
     }
@@ -483,7 +500,7 @@ bool Server::registrateNewClients(QWebSocket *socket, const QString &login, cons
         return false;
     }
 
-    db.transaction();  // Начало транзакции
+    db.transaction();
 
     QString salt = generateSalt();
     QString hash = hashPassword(password, salt);
@@ -493,12 +510,12 @@ bool Server::registrateNewClients(QWebSocket *socket, const QString &login, cons
 
     if (!executeQuery(insertQuery, params, &query)) {
         qDebug() << "Error adding user to database. Rolling back transaction.";
-        db.rollback();  // Откат транзакции
+        db.rollback();
         // socket->disconnectFromHost();
         return false;
     }
 
-    if (!db.commit()) {  // Завершение транзакции
+    if (!db.commit()) {
         qDebug() << "Error registration transaction:" << db.lastError().text();
         // socket->disconnectFromHost();
         return false;
@@ -574,7 +591,7 @@ void Server::sendMessageToClients(const QJsonObject &jsonIncoming, QWebSocket *s
         response["type"] = "search_users";
         response["to"] = jsonIncoming["login"];
         // response["status"] = status ? "success" : "fail";
-        response["clients"] = getAllClients(jsonIncoming["login"].toString());
+        response["clients"] = getClientsByName(jsonIncoming["login"].toString(), jsonIncoming["message"].toString());
 
     } else {
         qDebug() << "Wrong type message";

@@ -35,7 +35,7 @@ bool Dialog::socketConnect(SystemMessage typeMessage)
     }
 
     // QSslConfiguration sslConfig;
-    // sslConfig.setPeerVerifyMode(QSslSocket::VerifyNone); // Отключение проверки сертификата
+    // sslConfig.setPeerVerifyMode(QSslSocket::VerifyNone);
     // socket->setSslConfiguration(sslConfig);
     socket->open(QUrl("ws://127.0.0.1:1111"));
 
@@ -106,7 +106,7 @@ void Dialog::handleClients(const QJsonArray &clients)
 void Dialog::handleRemoveClient(const QJsonObject &client)
 {
     if (!client.isEmpty()) {
-        QString login = client["login"].toString(); // Получаем логин пользователя
+        QString login = client["login"].toString();
 
         if (userItemMap.contains(login)) {
 
@@ -291,14 +291,14 @@ void Dialog::onSearchUsers_textEdited()
     // }
 }
 
-void Dialog::focusInEvent(QFocusEvent *event)
-{
-    if (ui->lineEdit_3->hasFocus()) {
-        qDebug() << "lineEdit_3 в фокусе!";
-        // Здесь можно вызвать нужный метод
-    }
-    QDialog::focusInEvent(event);
-}
+// void Dialog::focusInEvent(QFocusEvent *event)
+// {
+//     if (ui->lineEdit_3->hasFocus()) {
+//         qDebug() << "lineEdit_3 в фокусе!";
+
+//     }
+//     QDialog::focusInEvent(event);
+// }
 
 
 void Dialog::loadChatHistory(const QString &user)
@@ -328,31 +328,39 @@ void Dialog::loadChatHistory(const QString &user)
 
 void Dialog::onSearchUsers_dropdownAppend(const QJsonObject &jsonObj)
 {
-
-    // QJsonArray clientsArray = jsonObj["clients"].toArray();
     QJsonArray users = jsonObj["clients"].toArray();
 
-    QListWidget *userDropdown = new QListWidget(this);
-    userDropdown->setWindowFlags(Qt::Popup); // Делаем всплывающее окно
-    userDropdown->setAttribute(Qt::WA_DeleteOnClose); // Удаляем при закрытии
+    if (users.isEmpty() || ui->lineEdit_3->text().isEmpty()) {
+        if (userDropdown) userDropdown->hide();
+        return;
+    }
+
+    if (!userDropdown) {
+        userDropdown = new QListWidget(this);
+        userDropdown->setWindowFlags(Qt::ToolTip);
+        userDropdown->setAttribute(Qt::WA_DeleteOnClose);
+        userDropdown->setFocusPolicy(Qt::NoFocus);
+
+        connect(userDropdown, &QListWidget::itemClicked, this, [this](QListWidgetItem *item) {
+            ui->lineEdit_3->setText(item->text());
+            ui->lineEdit_3->setFocus();
+            userDropdown->hide();
+        });
+    } else {
+        userDropdown->clear();
+    }
 
     for (const QJsonValue &userValue : users) {
         QString username = userValue.toObject()["login"].toString();
         userDropdown->addItem(username);
     }
 
-    // Привязываем выбор пользователя к `lineEdit_3`
-    connect(userDropdown, &QListWidget::itemClicked, this, [this, userDropdown](QListWidgetItem *item) {
-        ui->lineEdit_3->setText(item->text()); // Устанавливаем выбранный логин
-        userDropdown->close(); // Закрываем список после выбора
-    });
-
-    // Отображаем список под `lineEdit_3`
     QPoint pos = ui->lineEdit_3->mapToGlobal(QPoint(0, ui->lineEdit_3->height()));
     userDropdown->move(pos);
     userDropdown->resize(ui->lineEdit_3->width(), 100);
     userDropdown->show();
 
+    QTimer::singleShot(0, ui->lineEdit_3, SLOT(setFocus()));
 }
 
 
@@ -403,4 +411,4 @@ void Dialog::restoreChatState()
 
 //проверить повторную регистрацию
 // почему не дает с нового акка зайти
-//придумать список диалогов
+//нажатие на кнопки в поиске
