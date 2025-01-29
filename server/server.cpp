@@ -122,10 +122,11 @@ void Server::slotTextMessageReceived(const QString &message)
         handleRegistration(socket, jsonObj);
     } else if (typeMessage == "chat") {
         handleChatMessage(socket, jsonObj);
+    } else if (typeMessage == "search_users") {
+        sendMessageToClients(jsonObj, socket);
     } else {
         qDebug() << "Unknown message type.";
     }
-
 }
 
 void Server::handleLogin(QWebSocket* socket, const QJsonObject &jsonObj)
@@ -569,7 +570,11 @@ void Server::sendMessageToClients(const QJsonObject &jsonIncoming, QWebSocket *s
             response["status"] = "fail";
             response["message"] = "Client not found!";
         }
-        // }else if (messageType == "newconnection") {
+    } else if (messageType == "search_users") {
+        response["type"] = "search_users";
+        response["to"] = jsonIncoming["login"];
+        // response["status"] = status ? "success" : "fail";
+        response["clients"] = getAllClients(jsonIncoming["login"].toString());
 
     } else {
         qDebug() << "Wrong type message";

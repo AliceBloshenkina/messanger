@@ -14,6 +14,8 @@ Dialog::Dialog(QWidget *parent)
     // connect(socket, &QWebSocket::connected, this, &Dialog::slotOnConnected);
     connect(socket, &QWebSocket::disconnected, this, &Dialog::slotDisconnected);
     connect(socket, &QWebSocket::textMessageReceived, this, &Dialog::slotTextMessageReceived);
+    connect(ui->lineEdit_3, &QLineEdit::textEdited, this, &Dialog::onSearchUsers_textEdited);
+
 }
 
 Dialog::~Dialog()
@@ -191,7 +193,7 @@ void Dialog::slotTextMessageReceived(const QString &message)
 
 
             if (jsonObj.contains("history_messages") ) { // && jsonObj["history_messages"].isArray()
-                qDebug() << "я начал историю";
+                // qDebug() << "я начал историю";
                 history = jsonObj["history_messages"].toArray();
                 // handleClients(jsonObj["clients"].toArray());
                 handleClients(jsonObj["history_messages"].toArray());
@@ -230,14 +232,27 @@ void Dialog::slotTextMessageReceived(const QString &message)
         } else if (jsonObj["online"] == "FALSE"){
             handleRemoveClient(jsonObj);
         }
+    } else if (typeMessage == "search_users"){
+        qDebug() << "Получил пользователей для поиска";
+        onSearchUsers_dropdownAppend(jsonObj);
+
+        // for (const QJsonValue &clientValue : clientsArray) {
+        //     QJsonObject clientObj = clientValue.toObject();
+        //     QString login = clientObj["login"].toString();
+        //     qDebug() << "Логин пользователя:" << login;
+        // }
+        // ВЫЗОВ МЕТОДА ДЛЯ ОТОБРАЖЕНИЯ НА ЭКРАН
+
+
+
     } else {
         qDebug() << "Unknown message type.";
     }
 
-
-
-
 }
+
+
+
 
 void Dialog::onUserSelected(QListWidgetItem *item)
 {
@@ -253,6 +268,38 @@ void Dialog::onUserSelected(QListWidgetItem *item)
 
 
 }
+
+void Dialog::onSearchUsers_textEdited()
+{
+    qDebug() << "Start find users";
+    QString searchText = ui->lineEdit_3->text().toLower();
+
+    qDebug() << "Name found - " << searchText;
+
+    QJsonObject request;
+    request["type"] = "search_users";
+    request["from"] = login;
+    // request["to"] = toLogin;
+    request["message"] = searchText;
+
+    QJsonDocument doc(request);
+    socket->sendTextMessage(QString::fromUtf8(doc.toJson(QJsonDocument::Compact)));
+
+    // for (int i = 0; i < ui->userListWidget->count(); ++i) {
+    //     QListWidgetItem *item = ui->userListWidget->item(i);
+    //     item->setHidden(!item->text().toLower().contains(searchText));
+    // }
+}
+
+void Dialog::focusInEvent(QFocusEvent *event)
+{
+    if (ui->lineEdit_3->hasFocus()) {
+        qDebug() << "lineEdit_3 в фокусе!";
+        // Здесь можно вызвать нужный метод
+    }
+    QDialog::focusInEvent(event);
+}
+
 
 void Dialog::loadChatHistory(const QString &user)
 {
@@ -277,6 +324,35 @@ void Dialog::loadChatHistory(const QString &user)
             break;
         }
     }
+}
+
+void Dialog::onSearchUsers_dropdownAppend(const QJsonObject &jsonObj)
+{
+
+    // QJsonArray clientsArray = jsonObj["clients"].toArray();
+    QJsonArray users = jsonObj["clients"].toArray();
+
+    QListWidget *userDropdown = new QListWidget(this);
+    userDropdown->setWindowFlags(Qt::Popup); // Делаем всплывающее окно
+    userDropdown->setAttribute(Qt::WA_DeleteOnClose); // Удаляем при закрытии
+
+    for (const QJsonValue &userValue : users) {
+        QString username = userValue.toObject()["login"].toString();
+        userDropdown->addItem(username);
+    }
+
+    // Привязываем выбор пользователя к `lineEdit_3`
+    connect(userDropdown, &QListWidget::itemClicked, this, [this, userDropdown](QListWidgetItem *item) {
+        ui->lineEdit_3->setText(item->text()); // Устанавливаем выбранный логин
+        userDropdown->close(); // Закрываем список после выбора
+    });
+
+    // Отображаем список под `lineEdit_3`
+    QPoint pos = ui->lineEdit_3->mapToGlobal(QPoint(0, ui->lineEdit_3->height()));
+    userDropdown->move(pos);
+    userDropdown->resize(ui->lineEdit_3->width(), 100);
+    userDropdown->show();
+
 }
 
 

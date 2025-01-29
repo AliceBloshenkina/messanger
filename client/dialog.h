@@ -39,13 +39,17 @@ signals:
     void somethingWrong();
     void chooseUser();
 
+protected:
+    void focusInEvent(QFocusEvent *event) override;
+
+
 private slots:
     void on_pushButton_clicked();
     // void slotOnConnected();
     void slotDisconnected();
     void slotTextMessageReceived(const QString &message);
     void onUserSelected(QListWidgetItem *item);
-
+    void onSearchUsers_textEdited();
 
 
 private:
@@ -54,6 +58,7 @@ private:
     QString password;
     QString toLogin;
     QWebSocket *socket;
+    // QListWidget *userDropdown;
     QJsonArray history;
     QHash<QString, QListWidgetItem*> userItemMap;
     // QByteArray Data;
@@ -64,6 +69,7 @@ private:
     void handleRemoveClient(const QJsonObject &client);
     // void getHistoryOfMessages();
     void loadChatHistory(const QString &user);
+    void onSearchUsers_dropdownAppend(const QJsonObject &client);
 
     void showInitialState();
     void restoreChatState();
