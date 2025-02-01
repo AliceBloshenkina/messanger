@@ -58,7 +58,7 @@ private:
     QString password;
     QString toLogin;
     QWebSocket *socket;
-      QListWidget *userDropdown = nullptr;
+    QListWidget *userDropdown = nullptr;
     // QListWidget *userDropdown;
     QJsonArray history;
     QHash<QString, QListWidgetItem*> userItemMap;
@@ -71,6 +71,7 @@ private:
     // void getHistoryOfMessages();
     void loadChatHistory(const QString &user);
     void onSearchUsers_dropdownAppend(const QJsonObject &client);
+
 
     void showInitialState();
     void restoreChatState();

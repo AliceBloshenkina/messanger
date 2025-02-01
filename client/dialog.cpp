@@ -75,6 +75,8 @@ void Dialog::SendToServer(QString str, QString toLogin)
 
 }
 
+
+
 void Dialog::handleClients(const QJsonArray &clients)
 {
     ui->userListWidget->clear();
@@ -243,8 +245,20 @@ void Dialog::slotTextMessageReceived(const QString &message)
         // }
         // ВЫЗОВ МЕТОДА ДЛЯ ОТОБРАЖЕНИЯ НА ЭКРАН
 
+    } else if (typeMessage == "get_online_status"){
+         qDebug() << "Получил назад статус";
+        QJsonObject person;
+        person["login"] = jsonObj["message"].toString();
 
+        person["online"] = jsonObj["online"].toString();
+        handleAddNewClient(person);
+        QListWidgetItem *item = userItemMap[login];
+        onUserSelected(item);
+        // // QString selectedUser = userItemMap.key(item);
 
+        // qDebug() << "Selected user:" << selectedUser;
+        // restoreChatState();
+        // ui->titleLabel->setText(person["login"].toString());
     } else {
         qDebug() << "Unknown message type.";
     }
@@ -261,10 +275,12 @@ void Dialog::onUserSelected(QListWidgetItem *item)
         return;
     }
     QString selectedUser = userItemMap.key(item);
+
     qDebug() << "Selected user:" << selectedUser;
     restoreChatState();
     ui->titleLabel->setText(selectedUser);
     loadChatHistory(selectedUser);
+    //ВЕРНУТЬ
 
 
 }
@@ -341,10 +357,34 @@ void Dialog::onSearchUsers_dropdownAppend(const QJsonObject &jsonObj)
         userDropdown->setAttribute(Qt::WA_DeleteOnClose);
         userDropdown->setFocusPolicy(Qt::NoFocus);
 
+        // connect(userDropdown, &QListWidget::itemClicked, this, &Dialog::onUserSelected);
+
+         qDebug() << "Userdropdown не упал";
         connect(userDropdown, &QListWidget::itemClicked, this, [this](QListWidgetItem *item) {
+
             ui->lineEdit_3->setText(item->text());
-            ui->lineEdit_3->setFocus();
+            // ui->lineEdit_3->setFocus();
+
+            qDebug() << "Userdropdown не упал2";
+
+
+            qDebug() << "Userdropdown не упал3";
+            QJsonObject request;
+            request["from"] = login;
+            qDebug() <<"text - " << ui->lineEdit_3->text();
+            request["message"] = item->text();
+
+            request["type"] = "get_online_status";
+            qDebug() << "Дай статус";
+            QJsonDocument doc(request);
+            socket->sendTextMessage(QString::fromUtf8(doc.toJson(QJsonDocument::Compact)));
+            qDebug() << "Userdropdown не упал4";
+
             userDropdown->hide();
+            // onUserSelected(item);
+            userDropdown->clear();
+            ui->lineEdit_3->clear();
+
         });
     } else {
         userDropdown->clear();

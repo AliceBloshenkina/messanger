@@ -76,6 +76,7 @@ private:
     QJsonArray getMessagesFromDatabase(const QString &login);
     QJsonArray getAllClients(const QString &login);
     QJsonArray getClientsByName(const QString &login, const QString &letters);
+    QString checkOnlineStatus(const QString &login);
 };
 
 #endif // SERVER_H

@@ -124,6 +124,10 @@ void Server::slotTextMessageReceived(const QString &message)
         handleChatMessage(socket, jsonObj);
     } else if (typeMessage == "search_users") {
         sendMessageToClients(jsonObj, socket);
+    } else if ("get_online_status") {
+        jsonObj["online"] = checkOnlineStatus(jsonObj["message"].toString());
+        sendMessageToClients(jsonObj, socket);
+        // qDebug() << jsonObj["online"];
     } else {
         qDebug() << "Unknown message type.";
     }
@@ -373,6 +377,23 @@ QJsonArray Server::getClientsByName(const QString &login, const QString &letters
     return allClients;
 }
 
+QString Server::checkOnlineStatus(const QString &login)
+{
+    // bool isOnline = std::any_of(clients.begin(), clients.end(),
+    //                             [&login](const auto &it) { return it.value() == login; });
+
+
+    for (auto it = clients.begin(); it != clients.end(); ++it) {
+        if (it.value() == login) {
+            return "TRUE";
+        }
+    }
+    return "FALSE";
+
+    // return isOnline ? "TRUE" : "FALSE";
+}
+
+
 
 void Server::slotDisconnected()
 {
@@ -592,7 +613,12 @@ void Server::sendMessageToClients(const QJsonObject &jsonIncoming, QWebSocket *s
         response["to"] = jsonIncoming["login"];
         // response["status"] = status ? "success" : "fail";
         response["clients"] = getClientsByName(jsonIncoming["login"].toString(), jsonIncoming["message"].toString());
-
+    } else if (messageType == "get_online_status"){
+        qDebug() << "Отправил назад статут онлайн";
+        response["type"] = "get_online_status";
+        response["to"] = jsonIncoming["login"];
+        response["online"] = jsonIncoming["online"];
+        response["message"] = jsonIncoming["message"];
     } else {
         qDebug() << "Wrong type message";
     }
