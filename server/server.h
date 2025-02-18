@@ -73,6 +73,7 @@ private:
     // QJsonArray get
     void notifyAllClients(const QString &newClientLogin, QWebSocket *socket, const QString &status);
     void addMessageToDatabase(const QJsonObject &jsonObj);
+    void markMessagesAsRead(const QString &fromLogin, const QString &toLogin);
     QJsonArray getMessagesFromDatabase(const QString &login);
     QJsonArray getAllClients(const QString &login);
     QJsonArray getClientsByName(const QString &login, const QString &letters);

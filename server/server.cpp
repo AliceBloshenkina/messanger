@@ -1,9 +1,13 @@
 #include "server.h"
+#include <QFile>
 
 Server::Server(QObject *parent)
     : QObject(parent),
     webSocketServer(new QWebSocketServer(QStringLiteral("Chat Server"), QWebSocketServer::NonSecureMode, this))
 {
+// Удаление базы данных
+    // QFile::remove("./messanger_users.db");
+
     if (!db.isValid()) {
         db = QSqlDatabase::addDatabase("QSQLITE");
         db.setDatabaseName("./messanger_users.db");
@@ -56,17 +60,35 @@ Server::Server(QObject *parent)
 bool Server::initializeDatabase() {
     QSqlQuery query(db);
 
-    if (!query.exec("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT, Login TEXT UNIQUE NOT NULL, Password TEXT NOT NULL, Salt TEXT NOT NULL);")) {
+    if (!query.exec("CREATE TABLE IF NOT EXISTS Users ("
+                    "Id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                    "Login TEXT UNIQUE NOT NULL, "
+                    "Password TEXT NOT NULL, "
+                    "Salt TEXT NOT NULL);")) {
         qDebug() << "Failed to create table Users:" << query.lastError().text();
         return false;
     }
 
-    if (!query.exec("CREATE TABLE IF NOT EXISTS Chats (Id INTEGER PRIMARY KEY AUTOINCREMENT, IdName1 INTEGER NOT NULL, IdName2 INTEGER NOT NULL, UNIQUE (IdName1, IdName2), FOREIGN KEY (IdName1) REFERENCES Users(Id) ON DELETE CASCADE, FOREIGN KEY (IdName2) REFERENCES Users(Id) ON DELETE CASCADE);")) {
+    if (!query.exec("CREATE TABLE IF NOT EXISTS Chats ("
+                    "Id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                    "IdName1 INTEGER NOT NULL, "
+                    "IdName2 INTEGER NOT NULL, "
+                    "UNIQUE (IdName1, IdName2), "
+                    "FOREIGN KEY (IdName1) REFERENCES Users(Id) ON DELETE CASCADE, "
+                    "FOREIGN KEY (IdName2) REFERENCES Users(Id) ON DELETE CASCADE);")) {
         qDebug() << "Failed to create table Chats:" << query.lastError().text();
         return false;
     }
 
-    if (!query.exec("CREATE TABLE IF NOT EXISTS Messages (Id INTEGER PRIMARY KEY AUTOINCREMENT, ChatId INTEGER NOT NULL, SenderId INTEGER NOT NULL, Message TEXT NOT NULL, Timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (ChatId) REFERENCES Chats(Id) ON DELETE CASCADE, FOREIGN KEY (SenderId) REFERENCES Users(Id) ON DELETE CASCADE);")) {
+    if (!query.exec("CREATE TABLE IF NOT EXISTS Messages ("
+                    "Id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                    "ChatId INTEGER NOT NULL, "
+                    "SenderId INTEGER NOT NULL, "
+                    "Message TEXT NOT NULL, "
+                    "Timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, "
+                    "IsRead BOOLEAN DEFAULT 0, "
+                    "FOREIGN KEY (ChatId) REFERENCES Chats(Id) ON DELETE CASCADE, "
+                    "FOREIGN KEY (SenderId) REFERENCES Users(Id) ON DELETE CASCADE);")) {
         qDebug() << "Failed to create table Messages:" << query.lastError().text();
         return false;
     }
@@ -128,6 +150,8 @@ void Server::slotTextMessageReceived(const QString &message)
         jsonObj["online"] = checkOnlineStatus(jsonObj["message"].toString());
         sendMessageToClients(jsonObj, socket);
         // qDebug() << jsonObj["online"];
+    } else if ("mark_as_read"){
+        markMessagesAsRead(jsonObj["from"].toString(), jsonObj["to"].toString());
     } else {
         qDebug() << "Unknown message type.";
     }
@@ -167,7 +191,16 @@ void Server::handleRegistration(QWebSocket* socket, const QJsonObject &jsonObj)
 
 void Server::handleChatMessage(QWebSocket *socket, const QJsonObject &jsonObj)
 {
-    sendMessageToClients(jsonObj, socket);
+    QString toLogin = jsonObj["to"].toString();
+    QWebSocket *recipientSocket = clients.key(toLogin, nullptr);
+
+    addMessageToDatabase(jsonObj);
+
+    if(recipientSocket){
+        sendMessageToClients(jsonObj, socket);
+    } else {
+        qDebug() << "User " << toLogin << "is offline. Message saved in db.";
+    }
 }
 
 void Server::addMessageToDatabase(const QJsonObject &jsonObj)
@@ -227,7 +260,7 @@ void Server::addMessageToDatabase(const QJsonObject &jsonObj)
         }
     }
 
-    query.prepare("INSERT INTO Messages (ChatId, SenderId, Message) VALUES (:chatId, :senderId, :message)");
+    query.prepare("INSERT INTO Messages (ChatId, SenderId, Message, IsRead) VALUES (:chatId, :senderId, :message, 0)");
     query.bindValue(":chatId", chatId);
     query.bindValue(":senderId", fromId);
     query.bindValue(":message", message);
@@ -239,6 +272,28 @@ void Server::addMessageToDatabase(const QJsonObject &jsonObj)
 
     qDebug() << "Message successfully added to database: chatId =" << chatId << ", senderId =" << fromId;
 }
+
+void Server::markMessagesAsRead(const QString &fromLogin, const QString &toLogin)
+{
+    QSqlQuery query(db);
+
+    query.prepare("UPDATE Messages SET IsRead = 1 WHERE ChatId IN "
+                  "(SELECT Id FROM Chats WHERE (IdName1 = (SELECT Id FROM Users WHERE Login = :from) "
+                  "AND IdName2 = (SELECT Id FROM Users WHERE Login = :to)) "
+                  "OR (IdName1 = (SELECT Id FROM Users WHERE Login = :to) "
+                  "AND IdName2 = (SELECT Id FROM Users WHERE Login = :from))) "
+                  "AND SenderId = (SELECT Id FROM Users WHERE Login = :to) "
+                  "AND IsRead = 0");
+    query.bindValue(":from", fromLogin);
+    query.bindValue(":to", toLogin);
+
+    if (!query.exec()) {
+        qDebug() << "Failed to mark messages as read:" << query.lastError().text();
+    } else {
+        qDebug() << "Messages marked as read between" << fromLogin << "and" << toLogin;
+    }
+}
+
 
 QJsonArray Server::getMessagesFromDatabase(const QString &login)
 {
@@ -290,6 +345,7 @@ QJsonArray Server::getMessagesFromDatabase(const QString &login)
                 messageObj["sender"] = (senderId == userId) ? login : otherUserName;
                 messageObj["message"] = messagesQuery.value("Message").toString();
                 messageObj["timestamp"] = messagesQuery.value("Timestamp").toString();
+                messageObj["is_read"] = messagesQuery.value("IsRead").toInt();
                 messagesArray.append(messageObj);
             }
         } else {
@@ -300,13 +356,13 @@ QJsonArray Server::getMessagesFromDatabase(const QString &login)
         QJsonObject chatObj;
         chatObj["otherUser"] = otherUserName;
         chatObj["messages"] = messagesArray;
-        qDebug() << "ИМЯ " << otherUserName;
+        // qDebug() << "ИМЯ " << otherUserName;
         if(clients.key(otherUserName, nullptr)){
             chatObj["online"] = "TRUE";
-            qDebug() << "статус тру";
+            // qDebug() << "статус тру";
         } else {
             chatObj["online"] = "FALSE";
-            qDebug() << "статус false";
+            // qDebug() << "статус false";
         }
         chatsArray.append(chatObj);
     }
@@ -603,7 +659,7 @@ void Server::sendMessageToClients(const QJsonObject &jsonIncoming, QWebSocket *s
         if (tempSocket){
             socket = tempSocket;
             response["status"] = "success";
-            addMessageToDatabase(jsonIncoming);
+            // addMessageToDatabase(jsonIncoming);
         } else {
             response["status"] = "fail";
             response["message"] = "Client not found!";

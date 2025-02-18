@@ -71,6 +71,7 @@ private:
     // void getHistoryOfMessages();
     void loadChatHistory(const QString &user);
     void onSearchUsers_dropdownAppend(const QJsonObject &client);
+    void markMessagesAsRead(const QString &client);
 
 
     void showInitialState();

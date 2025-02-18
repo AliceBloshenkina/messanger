@@ -229,11 +229,13 @@ void Dialog::slotTextMessageReceived(const QString &message)
             ui->textBrowser->append("Message delivery failed: " + jsonObj["message"].toString());
         }
     } else if(typeMessage == "update_clients") {
-        if(jsonObj["online"] == "TRUE"){
-            handleAddNewClient(jsonObj);
-        } else if (jsonObj["online"] == "FALSE"){
-            handleRemoveClient(jsonObj);
-        }
+        // ДОБАВИТЬ ЗАМЕНУ ТОЛЬКО ДЛЯ ЗАМЕНЫ КЛИЕНТОВ КОТОРЫЕ У НАС ЕСТЬ
+
+        // if(jsonObj["online"] == "TRUE"){
+        //     handleAddNewClient(jsonObj);
+        // } else if (jsonObj["online"] == "FALSE"){
+        //     handleRemoveClient(jsonObj);
+        // }
     } else if (typeMessage == "search_users"){
         qDebug() << "Получил пользователей для поиска";
         onSearchUsers_dropdownAppend(jsonObj);
@@ -280,6 +282,8 @@ void Dialog::onUserSelected(QListWidgetItem *item)
     restoreChatState();
     ui->titleLabel->setText(selectedUser);
     loadChatHistory(selectedUser);
+    markMessagesAsRead(selectedUser);
+
     //ВЕРНУТЬ
 
 
@@ -334,8 +338,13 @@ void Dialog::loadChatHistory(const QString &user)
                 QString sender = messageObj["sender"].toString();
                 QString message = messageObj["message"].toString();
                 QString timestamp = messageObj["timestamp"].toString();
+                bool isRead = messageObj["is_read"].toBool();
 
-                ui->textBrowser->append("[" + timestamp + "] " + sender + ": " + message);
+                QString formattedMessage = "[" + timestamp + "] " + sender + ": " + message;
+                if (!isRead) {
+                    formattedMessage += " (непрочитано)";
+                }
+                ui->textBrowser->append(formattedMessage);
             }
             break;
         }
@@ -403,7 +412,18 @@ void Dialog::onSearchUsers_dropdownAppend(const QJsonObject &jsonObj)
     QTimer::singleShot(0, ui->lineEdit_3, SLOT(setFocus()));
 }
 
+void Dialog::markMessagesAsRead(const QString &client)
+{
+    QJsonObject request;
+    request["type"] = "mark_as_read";
+    request["from"] = login;
+    request["to"] = client;
 
+    QJsonDocument doc(request);
+    socket->sendTextMessage(QString::fromUtf8(doc.toJson(QJsonDocument::Compact)));
+    // добавить обновление на экран
+    qDebug() << "Sent mark_as_read request for chat with:" << client;
+}
 
 void Dialog::slotDisconnected()
 {
