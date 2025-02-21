@@ -57,6 +57,7 @@ private:
     QString login;
     QString password;
     QString toLogin;
+    QListWidgetItem *selectedUser;
     QWebSocket *socket;
     QListWidget *userDropdown = nullptr;
     // QListWidget *userDropdown;
